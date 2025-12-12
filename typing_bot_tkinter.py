@@ -2,10 +2,18 @@ import os
 import sys
 from tkinter import *
 from tkinter import ttk
+from tkinter import messagebox
+import logging
 import pyautogui
 import time
 import pytesseract
 from PIL import Image
+
+logging.basicConfig(
+    filename="typing_bot_debug.log",
+    level=logging.DEBUG,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 running_corner1 = False
 running_corner2 = False
@@ -80,15 +88,16 @@ def start_corner2():
     update_corner2()
 
 def run_bot():
+    global corner1, corner2, CHAR_GAP
 
-    global corner1, corner2
+    # 1) Check corners
+    if corner1 is None or corner2 is None:
+        messagebox.showerror("Error", "Set both corners before running the bot.")
+        logging.error("run_bot called with corner1=%s, corner2=%s", corner1, corner2)
+        return
 
-    if corner1 == None or corner2 == None: 
-        print("Set both corners")
     x1, y1 = corner1
     x2, y2 = corner2
-
-    CHAR_GAP = float(temp.get())
 
     left = min(x1, x2)
     top = min(y1, y2)
@@ -96,15 +105,75 @@ def run_bot():
     bottom = max(y1, y2)
     width = right - left
     height = bottom - top
-    region=(left,top,width,height)
-    pyautogui.screenshot("text.png",region=region)
-    img = Image.open('text.png')
+    region = (left, top, width, height)
 
-    raw_text = pytesseract.image_to_string(img, config="--psm 6")
-    text = raw_text.strip().replace("\n", " ")
+    logging.debug("Region calculated: %s", region)
 
+    # Sanity check: positive width/height
+    if width <= 0 or height <= 0:
+        messagebox.showerror("Error", f"Invalid region: {region}")
+        logging.error("Invalid region %s", region)
+        return
+
+    # 2) Screenshot
+    try:
+        img = pyautogui.screenshot("text.png", region=region)
+        img.save("debug_region.png")  # see what area was captured
+        logging.info("Screenshot saved as debug_region.png")
+    except Exception as e:
+        messagebox.showerror("Screenshot error", str(e))
+        logging.exception("Error during screenshot")
+        return
+
+    # 3) OCR
+    try:
+        raw_text = pytesseract.image_to_string(img, config="--psm 6")
+        logging.debug("raw_text repr: %r", raw_text)
+    except Exception as e:
+        messagebox.showerror("OCR error", str(e))
+        logging.exception("Error during OCR")
+        return
+
+    text = (raw_text or "").strip().replace("\n", " ")
+    logging.info("Final text length: %d", len(text))
+
+    if not text:
+        messagebox.showinfo(
+            "Info",
+            "OCR produced empty text.\n"
+            "Check debug_region.png to see what was captured."
+        )
+        return
+
+    # Optional: show preview of what will be typed
+    preview = text if len(text) < 200 else text[:200] + "..."
+    messagebox.showinfo("Preview", f"Will type:\n\n{preview}")
+    logging.debug("Preview text shown to user")
+
+    # 4) Get typing speed from your Entry if you're using temp/StringVar
+    try:
+        CHAR_GAP = float(temp.get())
+        logging.info("Using CHAR_GAP=%f", CHAR_GAP)
+    except Exception as e:
+        logging.exception("Error converting typing speed, falling back to default 0.01")
+        CHAR_GAP = 0.01
+
+    # 5) Delay so user can focus typing box
+    messagebox.showinfo(
+        "Typing Bot",
+        "Click OK, then quickly focus the typing field.\n"
+        "Typing will start in 3 seconds."
+    )
     time.sleep(3)
-    pyautogui.write(text, interval=CHAR_GAP)
+
+    # 6) Type
+    try:
+        pyautogui.write(text, interval=CHAR_GAP)
+        logging.info("Typing completed")
+    except Exception as e:
+        messagebox.showerror("Typing error", str(e))
+        logging.exception("Error during pyautogui.write")
+
     
 root = Tk()
 root.title("Typing Bot")
