@@ -90,7 +90,6 @@ def start_corner2():
 def run_bot():
     global corner1, corner2, CHAR_GAP
 
-    # 1) Check corners
     if corner1 is None or corner2 is None:
         messagebox.showerror("Error", "Set both corners before running the bot.")
         logging.error("run_bot called with corner1=%s, corner2=%s", corner1, corner2)
@@ -109,23 +108,20 @@ def run_bot():
 
     logging.debug("Region calculated: %s", region)
 
-    # Sanity check: positive width/height
     if width <= 0 or height <= 0:
         messagebox.showerror("Error", f"Invalid region: {region}")
         logging.error("Invalid region %s", region)
         return
 
-    # 2) Screenshot
     try:
         img = pyautogui.screenshot("text.png", region=region)
-        img.save("debug_region.png")  # see what area was captured
+        img.save("debug_region.png")  
         logging.info("Screenshot saved as debug_region.png")
     except Exception as e:
         messagebox.showerror("Screenshot error", str(e))
         logging.exception("Error during screenshot")
         return
 
-    # 3) OCR
     try:
         raw_text = pytesseract.image_to_string(img, config="--psm 6")
         logging.debug("raw_text repr: %r", raw_text)
@@ -145,12 +141,10 @@ def run_bot():
         )
         return
 
-    # Optional: show preview of what will be typed
     preview = text if len(text) < 200 else text[:200] + "..."
     messagebox.showinfo("Preview", f"Will type:\n\n{preview}")
     logging.debug("Preview text shown to user")
 
-    # 4) Get typing speed from your Entry if you're using temp/StringVar
     try:
         CHAR_GAP = float(temp.get())
         logging.info("Using CHAR_GAP=%f", CHAR_GAP)
@@ -158,7 +152,6 @@ def run_bot():
         logging.exception("Error converting typing speed, falling back to default 0.01")
         CHAR_GAP = 0.01
 
-    # 5) Delay so user can focus typing box
     messagebox.showinfo(
         "Typing Bot",
         "Click OK, then quickly focus the typing field.\n"
@@ -166,7 +159,6 @@ def run_bot():
     )
     time.sleep(3)
 
-    # 6) Type
     try:
         pyautogui.write(text, interval=CHAR_GAP)
         logging.info("Typing completed")
